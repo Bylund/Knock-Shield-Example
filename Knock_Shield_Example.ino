@@ -1,7 +1,7 @@
 /*
     Example code compatible with the Knock Shield for Arduino.
     
-    Copyright (C) 2018 Bylund Automotive AB
+    Copyright (C) 2018 - 2019 Bylund Automotive AB
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,8 +21,8 @@
     
     info@bylund-automotive.com
 
-    Revision history:
-    2018-08-12        Rev. 1        First release to GitHub.
+    Version history:
+    2018-08-12        v1.0.0        First release to Github.
 */
 
 //Define included headers.
