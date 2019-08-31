@@ -23,6 +23,7 @@
 
     Version history:
     2018-08-12        v1.0.0        First release to Github.
+    2019-08-31        v1.0.1        Correction in variable descriptions.
 */
 
 //Define included headers.
@@ -39,8 +40,8 @@
 
 //Define pin assignments.
 #define           SPU_NSS_PIN                    10            /* Pin used for chip select in SPI communication. */
-#define           SPU_TEST_PIN                   5             /* Pin used for chip select in SPI communication. */
-#define           SPU_HOLD_PIN                   4             /* Pin used for chip select in SPI communication. */
+#define           SPU_TEST_PIN                   5             /* Pin used for SPU communication. */
+#define           SPU_HOLD_PIN                   4             /* Pin used for defining the knock window. */
 #define           LED_STATUS                     7             /* Pin used for power the status LED, indicating we have power. */
 #define           LED_LIMIT                      6             /* Pin used for the limit LED. */
 #define           UA_ANALOG_INPUT_PIN            0             /* Analog input for knock. */
