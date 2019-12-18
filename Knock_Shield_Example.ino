@@ -24,6 +24,7 @@
     Version history:
     2018-08-12        v1.0.0        First release to Github.
     2019-08-31        v1.0.1        Correction in variable descriptions.
+    2019-12-18        v1.1.0        Implemented an analog output feature.
 */
 
 //Define included headers.
@@ -44,7 +45,8 @@
 #define           SPU_HOLD_PIN                   4             /* Pin used for defining the knock window. */
 #define           LED_STATUS                     7             /* Pin used for power the status LED, indicating we have power. */
 #define           LED_LIMIT                      6             /* Pin used for the limit LED. */
-#define           UA_ANALOG_INPUT_PIN            0             /* Analog input for knock. */
+#define           ANALOG_INPUT_PIN               0             /* Analog input for knock. */
+#define           ANALOG_OUTPUT_PIN              3             /* Pin used for the PWM to the 0-1V analog output. */
 
 //Function for transfering SPI data to the SPU.
 byte COM_SPI(byte TX_data) {
@@ -128,11 +130,15 @@ void loop() {
     digitalWrite(SPU_HOLD_PIN, LOW);
 
     //The SPU output voltage is read by the Arduino ADC on analogue input pin 0.
-    uint16_t adcValue_UA = analogRead(UA_ANALOG_INPUT_PIN);
+    uint16_t adcValue_UA = analogRead(ANALOG_INPUT_PIN);
 
     //Convert ADC-value to percentage.
     float knock_percentage = ((float)adcValue_UA / 1023) * 100;
 
+    //Set analog 0-5V output.
+    uint8_t analogOutput = map(adcValue_UA, 0, 1023, 0, 255);
+    analogWrite(ANALOG_OUTPUT_PIN, analogOutput);
+      
     //Set Limit LED if knock percentage reaches 80%.
     if (knock_percentage >= 80) digitalWrite(LED_LIMIT, HIGH); else digitalWrite(LED_LIMIT, LOW);
     
