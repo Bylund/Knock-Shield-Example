@@ -142,7 +142,7 @@ void loop() {
     //Set Limit LED if knock percentage reaches 80%.
     if (knock_percentage >= 80) digitalWrite(LED_LIMIT, HIGH); else digitalWrite(LED_LIMIT, LOW);
     
-    //Display oxygen content.
+    //Display knock signal.
     Serial.print("SPU KNOCK LEVEL: ");
     Serial.print(knock_percentage, 0);
     Serial.print("%\n\r");
