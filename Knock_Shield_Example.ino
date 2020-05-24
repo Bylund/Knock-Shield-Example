@@ -25,18 +25,20 @@
     2018-08-12        v1.0.0        First release to Github.
     2019-08-31        v1.0.1        Correction in variable descriptions.
     2019-12-18        v1.1.0        Implemented an analog output feature.
+    2020-05-24        v1.2.0        Implemented both channels.
 */
 
 //Define included headers.
 #include <SPI.h>
 
-//Define registers used.
+//Define registers and parameters used.
 #define           SPU_SET_PRESCALAR_6MHz         0b01000100    /* 6MHz prescalar with SDO active */
 #define           SPU_SET_CHANNEL_1              0b11100000    /* Setting active channel to 1 */
+#define           SPU_SET_CHANNEL_2              0b11100001    /* Setting active channel to 2 */
 #define           SPU_SET_BAND_PASS_FREQUENCY    0b00101010    /* Setting band pass frequency to 7.27kHz */
 #define           SPU_SET_PROGRAMMABLE_GAIN      0b10100010    /* Setting programmable gain to 0.381 */
 #define           SPU_SET_INTEGRATOR_TIME        0b11001010    /* Setting programmable integrator time constant to 100µs */
-
+#define           KNOCK_THRESHOLD_LEVEL          204           /* Setting knock LED level, max value of 255. */
 #define           MEASUREMENT_WINDOW_TIME        3000          /* Defining the time window of measurement to 3ms. */
 
 //Define pin assignments.
@@ -59,11 +61,6 @@ byte COM_SPI(byte TX_data) {
 
   //Set chip select pin high, chip in use.
   digitalWrite(SPU_NSS_PIN, HIGH);
-
-  //Print SPI response.
-  Serial.print("SPU_SPI: 0x");
-  Serial.print(Response, HEX);
-  Serial.print("\n\r");
 
   //Return SPI response.
   return Response;
@@ -102,12 +99,16 @@ void setup() {
   digitalWrite(LED_LIMIT, LOW);
   delay(200);
 
-  //Configure SPU.  
-  COM_SPI(SPU_SET_PRESCALAR_6MHz);
-  COM_SPI(SPU_SET_CHANNEL_1);
-  COM_SPI(SPU_SET_BAND_PASS_FREQUENCY);
-  COM_SPI(SPU_SET_PROGRAMMABLE_GAIN);
-  COM_SPI(SPU_SET_INTEGRATOR_TIME);
+  //Configure SPU.
+  Serial.print("Configuring SPU: 0x");
+  Serial.print( COM_SPI(SPU_SET_PRESCALAR_6MHz), HEX );
+  Serial.print(", 0x");
+  Serial.print( COM_SPI(SPU_SET_BAND_PASS_FREQUENCY), HEX );
+  Serial.print(", 0x");
+  Serial.print( COM_SPI(SPU_SET_PROGRAMMABLE_GAIN), HEX );
+  Serial.print(", 0x");
+  Serial.print( COM_SPI(SPU_SET_INTEGRATOR_TIME), HEX );
+  Serial.print("\n\r");
   
 }
 
@@ -119,7 +120,10 @@ void loop() {
     
     //Set status LED on, operation starts.
     digitalWrite(LED_STATUS, HIGH);
-    
+
+    //Set channel 1.
+    COM_SPI(SPU_SET_CHANNEL_1);
+      
     //The measurement window starts by driving digital pin 4 high.
     digitalWrite(SPU_HOLD_PIN, HIGH);
 
@@ -130,21 +134,43 @@ void loop() {
     digitalWrite(SPU_HOLD_PIN, LOW);
 
     //The SPU output voltage is read by the Arduino ADC on analogue input pin 0.
-    uint16_t adcValue_UA = analogRead(ANALOG_INPUT_PIN);
+    uint16_t adcChannel1 = analogRead(ANALOG_INPUT_PIN);
 
-    //Convert ADC-value to percentage.
-    float knock_percentage = ((float)adcValue_UA / 1023) * 100;
+    //Set channel 2.
+    COM_SPI(SPU_SET_CHANNEL_2);
+      
+    //The measurement window starts by driving digital pin 4 high.
+    digitalWrite(SPU_HOLD_PIN, HIGH);
+
+    //The SPU performs the integration process and increases the output voltage based on the signal processing result.
+    delayMicroseconds(MEASUREMENT_WINDOW_TIME);
+    
+    //The measurement window ends by driving digital pin 4 low. The SPU stops the integration process and the output voltage is frozen until the window starts again.
+    digitalWrite(SPU_HOLD_PIN, LOW);
+
+    //The SPU output voltage is read by the Arduino ADC on analogue input pin 0.
+    uint16_t adcChannel2 = analogRead(ANALOG_INPUT_PIN); 
+
+    //Convert ADC-values to percentages.
+    float knockChannel1 = ((float)adcChannel1 / 1023) * 100;
+    float knockChannel2 = ((float)adcChannel2 / 1023) * 100;
+
+    //Set analog output to highest value from either channels.
+    uint16_t adcValue = 0;
+    if (adcChannel1 < adcChannel2) adcValue = adcChannel2; else adcValue = adcChannel1;
 
     //Set analog 0-5V output.
-    uint8_t analogOutput = map(adcValue_UA, 0, 1023, 0, 255);
+    uint8_t analogOutput = map(adcValue, 0, 1023, 0, 255);
     analogWrite(ANALOG_OUTPUT_PIN, analogOutput);
       
     //Set Limit LED if knock percentage reaches 80%.
-    if (knock_percentage >= 80) digitalWrite(LED_LIMIT, HIGH); else digitalWrite(LED_LIMIT, LOW);
+    if (analogOutput >= KNOCK_THRESHOLD_LEVEL) digitalWrite(LED_LIMIT, HIGH); else digitalWrite(LED_LIMIT, LOW);
     
     //Display knock signal.
-    Serial.print("SPU KNOCK LEVEL: ");
-    Serial.print(knock_percentage, 0);
+    Serial.print("Channel 1: ");
+    Serial.print(knockChannel1, 0);
+    Serial.print("% - Channel 2: ");
+    Serial.print(knockChannel2, 0);
     Serial.print("%\n\r");
     
     //Set status LED off, operation stops. Inlcuding additional delay time for visibility.
@@ -157,4 +183,3 @@ void loop() {
   }
   
 }
-
