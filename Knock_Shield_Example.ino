@@ -26,10 +26,12 @@
     2019-08-31        v1.0.1        Correction in variable descriptions.
     2019-12-18        v1.1.0        Implemented an analog output feature.
     2020-05-24        v1.2.0        Implemented both channels.
+    2020-07-05        v1.3.0        Implemented support for data logging.
 */
 
 //Define included headers.
 #include <SPI.h>
+#include <SD.h>
 
 //Define registers and parameters used.
 #define           SPU_SET_PRESCALAR_6MHz         0b01000100    /* 6MHz prescalar with SDO active */
@@ -43,6 +45,7 @@
 
 //Define pin assignments.
 #define           SPU_NSS_PIN                    10            /* Pin used for chip select in SPI communication. */
+#define           SDCARD_CS_PIN                  9             /* Pin used for chip select of SD-card in SPI communication. */
 #define           SPU_TEST_PIN                   5             /* Pin used for SPU communication. */
 #define           SPU_HOLD_PIN                   4             /* Pin used for defining the knock window. */
 #define           LED_STATUS                     7             /* Pin used for power the status LED, indicating we have power. */
@@ -50,20 +53,50 @@
 #define           ANALOG_INPUT_PIN               0             /* Analog input for knock. */
 #define           ANALOG_OUTPUT_PIN              3             /* Pin used for the PWM to the 0-1V analog output. */
 
+//Global variables.
+bool logEnabled = false;                                            /* Variable used for setting data logging enable or disabled. */
+
 //Function for transfering SPI data to the SPU.
 byte COM_SPI(byte TX_data) {
 
-  //Set chip select pin low, chip not in use.
-  digitalWrite(SPU_NSS_PIN, LOW);
+  //Configure SPI for knock controller.
+  SPI.setDataMode(SPI_MODE1);
+  SPI.setClockDivider(SPI_CLOCK_DIV16);
   
-  //Transmit and receive SPI data.
-  byte Response = SPI.transfer(TX_data);
+  //Set chip select pin low, chip in use. 
+  digitalWrite(SPU_NSS_PIN, LOW);
 
-  //Set chip select pin high, chip in use.
+  //Transmit request.
+  uint16_t Response =  SPI.transfer(TX_data);
+
+  //Set chip select pin high, chip not in use.
   digitalWrite(SPU_NSS_PIN, HIGH);
 
-  //Return SPI response.
   return Response;
+}
+
+//Data logging function.
+void logData(String logString) {
+
+  //Connect to SD-Card.
+  if ( SD.begin(SDCARD_CS_PIN) ) {
+
+    //Open file.
+    File logFile = SD.open("log.txt", FILE_WRITE);
+
+    //Store data.
+    logFile.println(logString);
+
+    //Close file.
+    logFile.close();
+
+  } else {
+    
+    //Error handling.
+    Serial.println("Error accessing SD-card.");  
+    
+  }
+  
 }
 
 //Function to set up device for operation.
@@ -74,12 +107,11 @@ void setup() {
 
   //Set up SPI.
   SPI.begin();
-  SPI.setClockDivider(SPI_CLOCK_DIV16);
   SPI.setBitOrder(MSBFIRST);
-  SPI.setDataMode(SPI_MODE1);
   
   //Set up digital output pins.
   pinMode(SPU_NSS_PIN, OUTPUT);  
+  pinMode(SDCARD_CS_PIN, OUTPUT); 
   pinMode(SPU_TEST_PIN, OUTPUT);  
   pinMode(SPU_HOLD_PIN, OUTPUT);  
   pinMode(LED_STATUS, OUTPUT);
@@ -87,6 +119,7 @@ void setup() {
 
   //Set initial values.
   digitalWrite(SPU_NSS_PIN, HIGH);
+  digitalWrite(SDCARD_CS_PIN, HIGH);
   digitalWrite(SPU_TEST_PIN, HIGH);
   digitalWrite(SPU_HOLD_PIN, LOW);
 
@@ -99,6 +132,15 @@ void setup() {
   digitalWrite(LED_LIMIT, LOW);
   delay(200);
 
+  //Configure data logging.
+  if ( SD.begin(SDCARD_CS_PIN) ) {
+    
+    //Enable data logging.
+    Serial.println("Data logging enabled.");
+    logEnabled = true;
+
+  }
+
   //Configure SPU.
   Serial.print("Configuring SPU: 0x");
   Serial.print( COM_SPI(SPU_SET_PRESCALAR_6MHz), HEX );
@@ -109,7 +151,7 @@ void setup() {
   Serial.print(", 0x");
   Serial.print( COM_SPI(SPU_SET_INTEGRATOR_TIME), HEX );
   Serial.print("\n\r");
-  
+
 }
 
 //Main operation function.
@@ -166,12 +208,18 @@ void loop() {
     //Set Limit LED if knock percentage reaches 80%.
     if (analogOutput >= KNOCK_THRESHOLD_LEVEL) digitalWrite(LED_LIMIT, HIGH); else digitalWrite(LED_LIMIT, LOW);
     
-    //Display knock signal.
-    Serial.print("Channel 1: ");
-    Serial.print(knockChannel1, 0);
-    Serial.print("% - Channel 2: ");
-    Serial.print(knockChannel2, 0);
-    Serial.print("%\n\r");
+    //Assemble data.
+    String txString = "Channel 1: ";
+    txString += String(knockChannel1, 0);
+    txString += "% - Channel 2: ";
+    txString += String(knockChannel2, 0);
+    txString += "%";
+    
+    //Output string
+    Serial.println(txString);
+
+    //Log string.
+    if (logEnabled == true) logData(txString);
     
     //Set status LED off, operation stops. Inlcuding additional delay time for visibility.
     delay(100);
